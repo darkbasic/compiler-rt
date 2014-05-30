@@ -74,7 +74,10 @@ struct FunctionInterceptor<0> {
 // Special case of hooks -- ASan own interface functions.  Those are only called
 // after __asan_init, thus an empty implementation is sufficient.
 #define INTERFACE_FUNCTION(name)                                               \
-  extern "C" void name() { __debugbreak(); }                                   \
+  extern "C" void name() {                                                     \
+    volatile int prevent_icf = (__LINE__ << 8); (void)prevent_icf;             \
+    __debugbreak();                                                            \
+  }                                                                            \
   INTERCEPT_WHEN_POSSIBLE(#name, name)
 
 // INTERCEPT_HOOKS must be used after the last INTERCEPT_WHEN_POSSIBLE.
@@ -272,6 +275,8 @@ INTERFACE_FUNCTION(__asan_stack_free_7)
 INTERFACE_FUNCTION(__asan_stack_free_8)
 INTERFACE_FUNCTION(__asan_stack_free_9)
 INTERFACE_FUNCTION(__asan_stack_free_10)
+
+INTERFACE_FUNCTION(__sanitizer_cov_module_init)
 
 // TODO(timurrrr): Add more interface functions on the as-needed basis.
 
