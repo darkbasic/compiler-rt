@@ -1291,6 +1291,7 @@ TEST(MemorySanitizer, memcpy) {
   EXPECT_POISONED(y[1]);
 }
 
+// Dst is poisoned, src is clean.
 void TestUnalignedMemcpy(int left, int right, bool src_is_aligned) {
   const int sz = 20;
   char *dst = (char *)malloc(sz);
@@ -1316,6 +1317,36 @@ TEST(MemorySanitizer, memcpy_unaligned) {
     for (int j = 0; j < 10; ++j) {
       TestUnalignedMemcpy(i, j, true);
       TestUnalignedMemcpy(i, j, false);
+    }
+  }
+}
+
+// Src is poisoned, dst is clean.
+void TestUnalignedPoisonedMemcpy(int left, int right, bool src_is_aligned) {
+  const int sz = 20;
+  char *dst = (char *)malloc(sz);
+  memset(dst, 0, sz);
+
+  char *src = (char *)malloc(sz);
+  U4 origin = __msan_get_origin(src);
+
+  memcpy(dst + left, src_is_aligned ? src + left : src, sz - left - right);
+  for (int i = 0; i < left; ++i)
+    EXPECT_NOT_POISONED(dst[i]);
+  for (int i = 0; i < right; ++i)
+    EXPECT_NOT_POISONED(dst[sz - i - 1]);
+  EXPECT_POISONED_O(dst[left], origin);
+  EXPECT_POISONED_O(dst[sz - right - 1], origin);
+
+  free(dst);
+  free(src);
+}
+
+TEST(MemorySanitizer, memcpy_unaligned_poisoned) {
+  for (int i = 0; i < 10; ++i) {
+    for (int j = 0; j < 10; ++j) {
+      TestUnalignedPoisonedMemcpy(i, j, true);
+      TestUnalignedPoisonedMemcpy(i, j, false);
     }
   }
 }
@@ -3525,6 +3556,7 @@ TEST(MemorySanitizer, UnalignedStore64_precise2) {
   EXPECT_POISONED_O(x[11], originx3);
 }
 
+#ifndef MSAN_TEST_DISABLE_VECTOR_INTRINSICS
 namespace {
 typedef U1 V16x8 __attribute__((__vector_size__(16)));
 typedef U2 V8x16 __attribute__((__vector_size__(16)));
@@ -3685,6 +3717,7 @@ TEST(VectorMaddTest, mmx_pmadd_wd) {
 
   EXPECT_EQ((unsigned)(2 * 102 + 3 * 103), c[1]);
 }
+#endif  // MSAN_TEST_DISABLE_VECTOR_INTRINSICS
 
 TEST(MemorySanitizerDr, StoreInDSOTest) {
   if (!__msan_has_dynamic_component()) return;
